@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Image Resizer</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f5f5f7; margin: 0; padding: 24px; color: #1d1d1f; }
+  .container { max-width: 640px; margin: 0 auto; background: #fff;
+    border-radius: 16px; padding: 24px; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+  h1 { margin: 0 0 20px; font-size: 24px; }
+  .drop { border: 2px dashed #c7c7cc; border-radius: 12px; padding: 40px 20px;
+    text-align: center; color: #86868b; cursor: pointer; transition: .2s; margin-bottom: 20px; }
+  .drop.dragover { border-color: #0a84ff; background: #f0f7ff; color: #0a84ff; }
+  .drop.has-file { border-color: #34c759; background: #f0fff4; color: #34c759; }
+  .row { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+  label { width: 110px; font-size: 14px; color: #424245; }
+  select, input[type=number] { flex: 1; padding: 8px 10px; border: 1px solid #d2d2d7;
+    border-radius: 8px; font-size: 14px; background: #fff; }
+  input[type=number] { width: 90px; flex: none; }
+  button { width: 100%; padding: 14px; border: none; border-radius: 10px;
+    background: #0a84ff; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  button:hover { background: #0071e3; }
+  button:disabled { background: #b0b0b5; cursor: not-allowed; }
+  #preview { margin-top: 20px; text-align: center; }
+  #preview img { max-width: 100%; max-height: 300px; border-radius: 8px; }
+  #status { margin-top: 12px; font-size: 14px; color: #6e6e73; text-align: center; }
+  .downloads { margin-top: 16px; }
+  .downloads a { display: block; padding: 10px 14px; background: #f5f5f7;
+    border-radius: 8px; color: #0a84ff; text-decoration: none; font-size: 14px; margin-bottom: 8px; }
+  .downloads a:hover { background: #e8e8ed; }
+  .note { margin-top: 14px; font-size: 12px; color: #86868b; text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Image Resizer</h1>
+  <div class="drop" id="drop">
+    <div id="dropText">Drop an image here<br><small>or click to choose</small></div>
+    <input type="file" id="fileInput" accept="image/*" hidden>
+  </div>
+  <div class="row">
+    <label>Preset</label>
+    <select id="preset">
+      <option value="1179x2556">iPhone 14/15/16 Pro (1179 × 2556)</option>
+      <option value="1290x2796">iPhone Pro Max (1290 × 2796)</option>
+      <option value="750x1334">iPhone SE (750 × 1334)</option>
+      <option value="2048x2732">iPad Pro 12.9" (2048 × 2732)</option>
+      <option value="1080x1080">Instagram Square (1080 × 1080)</option>
+      <option value="1080x1920">Instagram Story (1080 × 1920)</option>
+      <option value="1920x1080">HD Wallpaper (1920 × 1080)</option>
+      <option value="custom">Custom</option>
+    </select>
+  </div>
+  <div class="row">
+    <label>Size</label>
+    <input type="number" id="width" value="1179" min="1"> ×
+    <input type="number" id="height" value="2556" min="1"> px
+  </div>
+  <div class="row">
+    <label>Mode</label>
+    <select id="mode">
+      <option value="fit">Fit (crop to fill, no distortion)</option>
+      <option value="pad">Pad (letterbox on white)</option>
+      <option value="stretch">Stretch (may distort)</option>
+    </select>
+  </div>
+  <button id="convert" disabled>Convert</button>
+  <div id="status"></div>
+  <div id="preview"></div>
+  <div class="downloads" id="downloads"></div>
+  <div class="note">Tip: right-click the preview → "Save Image As…" if the download link fails.</div>
+</div>
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const dropText = document.getElementById('dropText');
+const preset = document.getElementById('preset');
+const widthEl = document.getElementById('width');
+const heightEl = document.getElementById('height');
+const modeEl = document.getElementById('mode');
+const convertBtn = document.getElementById('convert');
+const statusEl = document.getElementById('status');
+const previewEl = document.getElementById('preview');
+const downloadsEl = document.getElementById('downloads');
+let selectedFile = null;
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
+
+function handleFile(file) {
+  if (!file.type.startsWith('image/')) { alert('Please choose an image file.'); return; }
+  selectedFile = file;
+  dropText.innerHTML = `<strong>${file.name}</strong><br><small>${(file.size/1024).toFixed(1)} KB</small>`;
+  drop.classList.add('has-file');
+  convertBtn.disabled = false;
+  statusEl.textContent = ''; previewEl.innerHTML = ''; downloadsEl.innerHTML = '';
+}
+
+preset.addEventListener('change', () => {
+  if (preset.value === 'custom') return;
+  const [w, h] = preset.value.split('x');
+  widthEl.value = w; heightEl.value = h;
+});
+
+convertBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  const W = parseInt(widthEl.value); const H = parseInt(heightEl.value);
+  if (!W || !H) { alert('Enter valid width and height.'); return; }
+  const mode = modeEl.value;
+  convertBtn.disabled = true; statusEl.textContent = 'Processing…';
+  previewEl.innerHTML = ''; downloadsEl.innerHTML = '';
+
+  try {
+    const img = await loadImage(selectedFile);
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // Opaque white background prevents alpha channel (App Store requirement)
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    if (mode === 'fit') {
+      const scale = Math.max(W / img.width, H / img.height);
+      const sw = W / scale, sh = H / scale;
+      const sx = (img.width - sw) / 2, sy = (img.height - sh) / 2;
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+    } else if (mode === 'pad') {
+      const scale = Math.min(W / img.width, H / img.height);
+      const dw = img.width * scale, dh = img.height * scale;
+      const dx = (W - dw) / 2, dy = (H - dh) / 2;
+      ctx.drawImage(img, dx, dy, dw, dh);
+    } else {
+      ctx.drawImage(img, 0, 0, W, H);
+    }
+
+    // toDataURL is more reliable across browsers than toBlob + Blob URL
+    const dataUrl = canvas.toDataURL('image/png');
+    const baseName = selectedFile.name.replace(/\.[^.]+$/, '');
+    const outName = `${baseName}_${W}x${H}.png`;
+
+    previewEl.innerHTML = `<img src="${dataUrl}" alt="preview">`;
+
+    // Build download link and attach it to the DOM before clicking
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = outName;
+    a.textContent = `⬇ Download ${outName}`;
+    a.style.userSelect = 'none';
+    downloadsEl.appendChild(a);   // <-- critical fix: must be in the DOM
+
+    a.addEventListener('click', (ev) => {
+      // Chrome sometimes needs an explicit click that is not from a data URL
+      // If it fails, the user can still right-click the preview
+      statusEl.textContent = `Download started — ${W} × ${H} px`;
+    });
+
+    statusEl.textContent = `Done — ${W} × ${H} px (opaque PNG, App Store-ready)`;
+    convertBtn.disabled = false;
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + err.message;
+    convertBtn.disabled = false;
+  }
+});
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+</script>
+</body>
+</html>
